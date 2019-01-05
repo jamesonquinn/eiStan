@@ -123,10 +123,8 @@ simplex[C] beta[M, R];			// Precinct probabilities for each race + candidate
  //calculate beta
  for (m in 1:M) {
   for (r in 1:R) {
-   for (c in 1:C) {
-    rawBeta[m,r][c] = cStrengths[c] * exp(racialModifiers[r]) * exp(precinctModifiers[m])
-   }
-   beta[m,r] = rawBeta[m,r] / sum(rawBeta(m,r))
+   rawBeta[m,r] = cStrengths .* exp(racialModifiers[r]) .* exp(precinctModifiers[m]);
+   beta[m,r] = rawBeta[m,r] / sum(rawBeta[m,r]);
   }
  }
 
@@ -150,17 +148,20 @@ simplex[C] beta[M, R];			// Precinct probabilities for each race + candidate
 
 model{
 
-  cStrengthMean ~ gamma(2.,1.); //otherwise, unidentified
+  cStrengthRate ~ gamma(2.,1.); //otherwise, unidentified
   cStrengths ~ gamma(cStrengthShape,cStrengthRate);
 
-  racialModifiers ~ normal(0,racialVariance);
-  precinctModifiers ~ normal(0,precinctVariance);
+  for (r in 1:R) {
+   racialModifiers[r] ~ normal(0.,racialVariance);
+  }
+  for (m in 1:M) {
+      precinctModifiers[m] ~ normal(0.,precinctVariance);
 
-		q[m] ~ my_multinomial_lpdf(beta[m]);
-		// print("target before adding Jacobian = ",target())
-		target+=J[m];
-		print("q[1] = ",q[1])
-		print("q[2] = ",q[2])
-	}
+   		 q[m] ~ my_multinomial_lpdf(beta[m]);
+   		 // print("target before adding Jacobian = ",target())
+   		 target+=J[m];
+   		 print("q[1] = ",q[1])
+   		 print("q[2] = ",q[2])
+	 }
 
 }

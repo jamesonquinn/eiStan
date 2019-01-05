@@ -110,7 +110,8 @@ for (j in 1:M) {
 
 data <- list(R=R, C=C, M=M, N=N, v=v, x=x)
 
-my_model <- stan_model(file = "/Users/mira/Dropbox (Mathcamp)/EI/STAN/rxc_beta_binomial.stan")
+#my_model <- stan_model(file = "rxc_beta_binomial.stan")
+my_model <- stan_model(file = "nodirichlet.stan")
 
 show(my_model)
 
