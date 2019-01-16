@@ -1,44 +1,4 @@
 functions {
-
-  vector[] my_simplex(vector y, vector v) {
-  // v has dimension K, y has dimension K-1
-  // This function maps y into a simplex in such a way that y=0 goes to v;
-  // it's just like STAN's built-in way of generating a simplex, except that
-  // 0 goes to a different place.
-  	int K=rows(v);
-  	vector[K] s[2];
-  //s[1] is the actual simplex;
-  //s[2] is log of the derivative of the function y[i] --> s[1][i]
-
-	int VERBOSE=0;
-	real v_res = 1-v[1];
-	real s_res = 1;
-
-  // we compute all e^y's once so we don't have to redo it each time
-
-	for (i in 1:K-1) {
-		s[1][i]=s_res*v[i]/(v[i]+v_res*exp(-y[i]));
-		s[2][i]=log(s[1][i]*(1-s[1][i])/s_res);
-
-		v_res = v_res-v[i+1];
-		s_res = s_res - s[1][i];
-		}
-	s[1][K]=s_res;
-	s[2][K]=0;		// The last entry does not contribute to the Jacobian
-
-	if (VERBOSE==1){
-		print("Function my_simplex:")
-		print("y = ", y);
-		print("v= ", v);
-		print("s[1]=",s[1]);
-		print("s[2]=",s[2]);
-		}
-
-	return s;
-	}
-
-
-
   real my_multinomial_lpdf(vector[] Q, vector[] Beta) {
   	// Beta[r,c] = probability of person of race r voting for candidate c.
   	// Q[r,c] = "number" of people of race r voting for candidate c
@@ -74,8 +34,10 @@ data{
 	int<lower = 1> R;		// number of rows, i.e. racial groups
 	int<lower = 2> C;		// number of columRs, i.e. candidates
 	int<lower = 2> M;		// number of precincts
-	int<lower = 0> N[M];	// number of people in each precinct
-	simplex[C] v[M];		// proportion of people for each candidate in each precinct
+	int<lower=0> K;			// max number of votes allowed per person
+	int<lower = 0> N[M];	// total number of people in each precinct
+	int<lower=0> V[M];		// total number of votes in each precinct
+	simplex[C] v[M];		// proportion of votes for each candidate in each precinct
 	simplex[R] x[M];		// proportion of people of each race in each precinct
 }
 
@@ -83,11 +45,6 @@ data{
 // ************************************************************************************
 
 parameters {
-	//real <lower = 0> lambda;
-	// Exponential hyperparameter: small lambda means lower
-	// variation of betas between precincts within a race,
-	// for all races
-
     real<lower=0>      cStrengthShape; //Shape parameter of a gamma for cStrengths
     vector<lower=0>[C] cStrengths; //unnormalized
 
@@ -96,10 +53,8 @@ parameters {
 
     real<lower=0>      precinctVariance; //variance of race-specific differences
     vector<lower=0>[C] precinctModifiers[M];    // log-odds modifiers to cStrengths for each precinct
-
-    //could include precinctRacialModifiers for fully-saturated model, and
-    //precinctRacialModifiers would be a tiny bit interesting, but meh...
-    //mostly that's just a lot more calculation for stuff that will show up in q anyway.
+    
+    real <lower = 1, upper = K> NumberOfVotes [R];	// how many votes each person in racial group tends to cast
 
     vector [C-1] y[M, R-1];	// Will be transformed into q, the number of voters
     						// for each race +candidate.
@@ -109,10 +64,9 @@ parameters {
 
 transformed parameters {
 
-vector[C] rawBeta[M, R];			// unnormalized betas
-simplex[C] beta[M, R];			// Precinct probabilities for each race + candidate
-
- real cStrengthRate;
+	vector[C] rawBeta[M, R];	// unnormalized betas
+	simplex[C] beta[M, R];		// Precinct probabilities for each race + candidate
+ 	real cStrengthRate;     //rate parameter of Gamma for cStrengths
 	vector [C] q[M, R];		//number of voters for each race and candidate
 	real J[M];				//absolute value of the Jacobian for transforming y to q
 	vector[C] s[2];			//dummy, ignore
@@ -148,8 +102,8 @@ simplex[C] beta[M, R];			// Precinct probabilities for each race + candidate
 
 model{
 
-  cStrengthRate ~ gamma(2.,1.); //otherwise, unidentified
-  cStrengths ~ gamma(cStrengthShape,cStrengthRate);
+  cStrengthShape ~ gamma(2.,1.); //otherwise, unidentified
+  cStrengths/cStrengthRate ~ gamma(cStrengthShape,1);
 
   for (r in 1:R) {
    racialModifiers[r] ~ normal(0.,racialVariance);
@@ -165,3 +119,5 @@ model{
 	 }
 
 }
+
+
